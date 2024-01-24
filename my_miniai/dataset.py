@@ -7,6 +7,12 @@ from torch.utils.data import default_collate
 from .minibatch import *
 
 
+def inplace(f):
+    def _f(b):
+        f(b)
+        return b
+    return _f
+
 class Dataloader:
     def __init__(self, ds, bs):
         self.ds = ds
@@ -38,5 +44,3 @@ class BatchSampler:
     def __iter__(self):
         yield from fc.chunked(iter(self.sampler), self.bs, drop_last=self.drop_last)
 
-
-def collate(b):
