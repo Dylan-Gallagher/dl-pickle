@@ -13,6 +13,7 @@ def inplace(f):
         return b
     return _f
 
+
 class Dataloader:
     def __init__(self, ds, bs):
         self.ds = ds
