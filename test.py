@@ -1,4 +1,4 @@
-from learner import *
+from  import *
 
 m = 28 * 28
 nh = 50
