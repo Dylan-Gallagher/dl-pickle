@@ -1,15 +1,15 @@
-import math,torch,matplotlib.pyplot as plt
+# import math, torch, matplotlib.pyplot as plt
 import fastcore.all as fc
-from collections.abc import Mapping
+# from collections.abc import Mapping
 from operator import attrgetter
 from functools import partial
 from copy import copy
 from torch import optim
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import ExponentialLR
 from convolutions import *
 from fastprogress import progress_bar, master_bar
 from torcheval.metrics import MulticlassAccuracy, Mean
-from torch.optim.lr_scheduler import ExponentialLR
 
 
 class CancelFitException(Exception):
@@ -71,15 +71,14 @@ class MetricsCB(Callback):
         [o.reset() for o in self.all_metrics.values()]
 
     def after_epoch(self, learn):
-        log = {k: f'{v.compute():.3f}' for k,v in self.all_metrics.items()}
+        log = {k: f'{v.compute():.3f}' for k, v in self.all_metrics.items()}
         log['epoch'] = learn.epoch
         log['train'] = 'train' if learn.model.training else 'eval'
         self._log(log)
 
     def after_batch(self, learn):
         x, y, *_ = to_cpu(learn.batch)
-        for m in self.metrics.values():
-            m.update(to_cpu(learn.preds), y)
+        for m in self.metrics.values(): m.update(to_cpu(learn.preds), y)
         self.loss.update(to_cpu(learn.loss), weight=len(x))
 
 
@@ -142,10 +141,8 @@ class ProgressCB(Callback):
         learn.dl.comment = f'{learn.loss:.3f}'
         if self.plot and hasattr(learn, 'metrics') and learn.training:
             self.losses.append(learn.loss.item())
-            if self.val_losses:
-                self.mbar.update_graph([[fc.L.range(self.losses), self.losses],
-                                        [fc.L.range(learn.epoch).map(lambda x: (x + 1) * len(learn.dls.train)),
-                                         self.val_losses]])
+            if self.val_losses: self.mbar.update_graph([[fc.L.range(self.losses), self.losses], [
+                fc.L.range(learn.epoch).map(lambda x: (x + 1) * len(learn.dls.train)), self.val_losses]])
 
     def after_epoch(self, learn):
         if not learn.training:
@@ -156,7 +153,7 @@ class ProgressCB(Callback):
                                          self.val_losses]])
 
 
-class with_cbs:
+class WithCbs:
     def __init__(self, nm):
         self.nm = nm
 
@@ -170,20 +167,21 @@ class with_cbs:
                 pass
             finally:
                 o.callback(f'cleanup_{self.nm}')
+
         return _f
 
 
-class Learner:
-    def __init__(self, model, dls=(0,), loss_func=F.mse_loss, lr=0.1,
-                 cbs=None, opt_func=optim.SGD):
+class Learner():
+    def __init__(self, model, dls=(0,), loss_func=F.mse_loss, lr=0.1, cbs=None, opt_func=optim.SGD):
         cbs = fc.L(cbs)
         self.model = model
         self.dls = dls
         self.loss_func = loss_func
-        self.opt_func = opt_func
         self.lr = lr
+        self.cbs = cbs
+        self.opt_func = opt_func
 
-    @with_cbs('batch')
+    @WithCbs('batch')
     def _one_batch(self):
         self.predict()
         self.callback('after_predict')
@@ -196,17 +194,16 @@ class Learner:
             self.callback('after_step')
             self.zero_grad()
 
-    @with_cbs('epoch')
+    @WithCbs('epoch')
     def _one_epoch(self):
-        for self.iter, self.batch in enumerate(self.dl):
-            self._one_batch()
+        for self.iter, self.batch in enumerate(self.dl): self._one_batch()
 
     def one_epoch(self, training):
         self.model.train(training)
         self.dl = self.dls.train if training else self.dls.valid
         self._one_epoch()
 
-    @with_cbs('fit')
+    @WithCbs('fit')
     def _fit(self, train, valid):
         for self.epoch in self.epochs:
             if train:
@@ -217,18 +214,23 @@ class Learner:
     def fit(self, n_epochs=1, train=True, valid=True, cbs=None, lr=None):
         cbs = fc.L(cbs)
         # `add_cb` and `rm_cb` were added in lesson 18
-        for cb in cbs: self.cbs.append(cb)
+        for cb in cbs:
+            self.cbs.append(cb)
         try:
             self.n_epochs = n_epochs
             self.epochs = range(n_epochs)
-            if lr is None: lr = self.lr
-            if self.opt_func: self.opt = self.opt_func(self.model.parameters(), lr)
+            if lr is None:
+                lr = self.lr
+            if self.opt_func:
+                self.opt = self.opt_func(self.model.parameters(), lr)
             self._fit(train, valid)
         finally:
-            for cb in cbs: self.cbs.remove(cb)
+            for cb in cbs:
+                self.cbs.remove(cb)
 
     def __getattr__(self, name):
-        if name in ('predict', 'get_loss', 'backward', 'step', 'zero_grad'): return partial(self.callback, name)
+        if name in ('predict', 'get_loss', 'backward', 'step', 'zero_grad'):
+            return partial(self.callback, name)
         raise AttributeError(name)
 
     def callback(self, method_nm):
@@ -257,14 +259,14 @@ class TrainLearner(Learner):
 
 
 class MomentumLearner(TrainLearner):
-    def __init__(self, model, dls, loss_func, lr=None, cbs=None,
-                 opt_func=optim.SGD, mom=0.85):
+    def __init__(self, model, dls, loss_func, lr=None, cbs=None, opt_func=optim.SGD, mom=0.85):
         self.mom = mom
         super().__init__(model, dls, loss_func, lr, cbs, opt_func)
 
     def zero_grad(self):
         with torch.no_grad():
-            for p in self.model.parameters(): p.grad *= self.mom
+            for p in self.model.parameters():
+                p.grad *= self.mom
 
 
 class LRFinderCB(Callback):
@@ -273,14 +275,12 @@ class LRFinderCB(Callback):
         self.max_mult = max_mult
 
     def before_fit(self, learn):
-        self.schedule = ExponentialLR(learn.opt, self.gamma)
-        self.lrs = []
-        self.losses = []
+        self.sched = ExponentialLR(learn.opt, self.gamma)
+        self.lrs, self.losses = [], []
         self.min = math.inf
 
     def after_batch(self, learn):
-        if not learn.training:
-            raise CancelEpochException()
+        if not learn.training: raise CancelEpochException()
         self.lrs.append(learn.opt.param_groups[0]['lr'])
         loss = to_cpu(learn.loss)
         self.losses.append(loss)
@@ -288,7 +288,7 @@ class LRFinderCB(Callback):
             self.min = loss
         if math.isnan(loss) or (loss > self.min * self.max_mult):
             raise CancelFitException()
-        self.schedule.step()
+        self.sched.step()
 
     def cleanup_fit(self, learn):
         plt.plot(self.lrs, self.losses)
@@ -298,4 +298,3 @@ class LRFinderCB(Callback):
 @fc.patch
 def lr_find(self: Learner, gamma=1.3, max_mult=3, start_lr=1e-5, max_epochs=10):
     self.fit(max_epochs, lr=start_lr, cbs=LRFinderCB(gamma=gamma, max_mult=max_mult))
-    

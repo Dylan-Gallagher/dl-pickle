@@ -2,9 +2,8 @@ import torch
 from torch import nn
 from torch.utils.data import default_collate
 from typing import Mapping
-from minibatch import *
+from training import *
 from dataset import *
-
 
 def_device = 'mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
 
