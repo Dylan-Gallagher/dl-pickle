@@ -1,7 +1,10 @@
-import torch
+import learner
 from minibatch import *
+from matmul import *
+from dataset import *
+from convolutions import *
+from backprop import *
+from datasets import load_dataset
 
-preds = torch.tensor([-0.09, -0.21, -0.08,  0.10, -0.04,  0.08, -0.04, -0.03,  0.01,  0.06])
-yb = torch.tensor([5, 0, 4, 1, 9, 2, 1, 3, 1, 4])
-
-print((preds.argmax()==yb).float().mean())
+# Load fashion_mnist dataset
+dsd = load_dataset('fashion_mnist')

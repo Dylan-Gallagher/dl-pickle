@@ -1,0 +1,6 @@
+torch
+matplotlib
+fastcore
+torcheval
+datasets
+fastprogress
